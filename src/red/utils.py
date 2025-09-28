@@ -155,4 +155,6 @@ class Spinner:
             click.echo(f'\r{self.spinner_chars[i % len(self.spinner_chars)]} {self.message}', nl=False)
             time.sleep(0.1)
             i += 1
-        click.echo('\r', nl=False)  # Clear the spinner line
+        # Clear the entire line by overwriting with spaces
+        line_length = len(self.spinner_chars[0]) + 1 + len(self.message)
+        click.echo(f'\r{" " * line_length}\r', nl=False)

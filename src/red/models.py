@@ -17,6 +17,7 @@ class Issue:
     priority: str
     author: str
     assigned_to: Optional[str]
+    project: str
     created_on: datetime
     updated_on: datetime
     done_ratio: int
@@ -34,8 +35,9 @@ class Issue:
             priority=data['priority']['name'],
             author=data['author']['name'],
             assigned_to=data.get('assigned_to', {}).get('name') if data.get('assigned_to') else None,
-            created_on=datetime.fromisoformat(data['created_on'].replace('Z', '+00:00')),
-            updated_on=datetime.fromisoformat(data['updated_on'].replace('Z', '+00:00')),
+            project=data['project']['name'],
+            created_on=datetime.fromisoformat(data['created_on'].replace('Z', '+00:00')).replace(tzinfo=None),
+            updated_on=datetime.fromisoformat(data['updated_on'].replace('Z', '+00:00')).replace(tzinfo=None),
             done_ratio=data.get('done_ratio', 0),
             estimated_hours=data.get('estimated_hours')
         )
