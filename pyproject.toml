@@ -16,5 +16,5 @@ dependencies = [
 ]
 
 [project.scripts]
-# this makes `red` call red.cli:main when installed
-red = "red.cli:main"
+# this makes `red` call red.cli.main:main when installed
+red = "red.cli.main:main"
