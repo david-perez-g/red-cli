@@ -13,11 +13,17 @@ pip install .
 ### Authentication
 
 ```bash
-# Login with API token
-red login --server https://redmine.example.com --token YOUR_API_TOKEN
+# Interactive login (recommended - secure)
+red login --server https://redmine.example.com
 
-# Login with username/password
+# Login with specific user
 red login --server https://redmine.example.com --user username
+
+# Force token authentication method
+red login --server https://redmine.example.com --user username --method token
+
+# Force password authentication method
+red login --server https://redmine.example.com --user username --method password
 
 # Show current session
 red whoami
