@@ -8,6 +8,7 @@ import click
 
 from ..app import AppContainer
 from ..presenters.spinner import Spinner
+from ..presenters.symbols import SYMBOLS
 from ...domain.exceptions import AuthError
 
 
@@ -40,13 +41,18 @@ def login(app: AppContainer, server: str, auth_user: Optional[str], method: Opti
         with Spinner("Authenticating..."):
             session = app.auth.login(server, username=auth_user, password=password, token=token)
 
-        click.echo(click.style("✅ Successfully logged in!", fg="green", bold=True))
+        success_prefix = SYMBOLS.get("success")
+        click.echo(click.style(f"{success_prefix} Successfully logged in!", fg="green", bold=True))
         click.echo(click.style(f"User: {session.user_name} (ID: {session.user_id})", fg="cyan"))
         click.echo(click.style(f"Server: {session.server_url}", fg="cyan"))
     except AuthError as exc:
-        click.echo(click.style(f"❌ Authentication failed: {exc}", fg="red", bold=True), err=True)
+        err_stream = click.get_text_stream("stderr")
+        auth_error_prefix = SYMBOLS.get("error", stream=err_stream)
+        click.echo(click.style(f"{auth_error_prefix} Authentication failed: {exc}", fg="red", bold=True), err=True)
     except Exception as exc:  # noqa: BLE001 - show generic failure to user
-        click.echo(click.style(f"❌ Login failed: {exc}", fg="red", bold=True), err=True)
+        err_stream = click.get_text_stream("stderr")
+        error_prefix = SYMBOLS.get("error", stream=err_stream)
+        click.echo(click.style(f"{error_prefix} Login failed: {exc}", fg="red", bold=True), err=True)
 
 
 @click.command()
@@ -55,9 +61,12 @@ def logout(app: AppContainer) -> None:
     """Clear the stored authentication session."""
     try:
         app.auth.logout()
-        click.echo(click.style("👋 Successfully logged out", fg="green"))
+        goodbye_prefix = SYMBOLS.get("goodbye")
+        click.echo(click.style(f"{goodbye_prefix} Successfully logged out", fg="green"))
     except Exception as exc:  # noqa: BLE001
-        click.echo(click.style(f"❌ Logout failed: {exc}", fg="red", bold=True), err=True)
+        err_stream = click.get_text_stream("stderr")
+        error_prefix = SYMBOLS.get("error", stream=err_stream)
+        click.echo(click.style(f"{error_prefix} Logout failed: {exc}", fg="red", bold=True), err=True)
 
 
 @click.command()
@@ -66,11 +75,13 @@ def whoami(app: AppContainer) -> None:
     """Display the current authenticated user."""
     session = app.auth.current_session()
     if not session:
-        click.echo(click.style("❓ Not logged in", fg="yellow"))
+        unknown_prefix = SYMBOLS.get("unknown")
+        click.echo(click.style(f"{unknown_prefix} Not logged in", fg="yellow"))
         click.echo(click.style("Use 'red login --server <URL>' to authenticate", fg="cyan"))
         return
 
-    click.echo(click.style("👤 Current Session", fg="blue", bold=True))
+    person_prefix = SYMBOLS.get("person")
+    click.echo(click.style(f"{person_prefix} Current Session", fg="blue", bold=True))
     click.echo(click.style(f"User: {session.user_name}", fg="cyan"))
     click.echo(click.style(f"ID: {session.user_id}", fg="cyan"))
     click.echo(click.style(f"Server: {session.server_url}", fg="cyan"))

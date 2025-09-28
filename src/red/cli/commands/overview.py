@@ -8,6 +8,7 @@ import click
 from ..app import AppContainer
 from ..presenters.formatters import render_personal_overview, render_project_overview
 from ..presenters.spinner import Spinner
+from ..presenters.symbols import SYMBOLS
 from ...domain.exceptions import AuthorizationRequiredError
 
 DateRange = Tuple[Optional[datetime], Optional[datetime]]
@@ -32,7 +33,12 @@ def overview(app: AppContainer, project: Optional[str], start_date: Optional[str
 				start = _parse_date(start_date)
 				end = _parse_date(end_date)
 			except ValueError as exc:
-				click.echo(click.style(f"❌ Invalid date format. Use YYYY-MM-DD: {exc}", fg="red", bold=True), err=True)
+				err_stream = click.get_text_stream("stderr")
+				error_prefix = SYMBOLS.get("error", stream=err_stream)
+				click.echo(
+					click.style(f"{error_prefix} Invalid date format. Use YYYY-MM-DD: {exc}", fg="red", bold=True),
+					err=True,
+				)
 				return
 			date_range = (start.date() if start else None, end.date() if end else None)
 
@@ -45,10 +51,14 @@ def overview(app: AppContainer, project: Optional[str], start_date: Optional[str
 				payload = app.overview.personal_overview(date_range)
 			render_personal_overview(payload)
 	except AuthorizationRequiredError as exc:
-		click.echo(click.style(f"🔐 Authentication required: {exc}", fg="red", bold=True), err=True)
+		err_stream = click.get_text_stream("stderr")
+		auth_prefix = SYMBOLS.get("auth", stream=err_stream)
+		click.echo(click.style(f"{auth_prefix} Authentication required: {exc}", fg="red", bold=True), err=True)
 		click.echo(click.style("Use 'red login --server <URL>' to authenticate", fg="cyan"))
 	except Exception as exc:  # noqa: BLE001
-		click.echo(click.style(f"❌ Error: {exc}", fg="red", bold=True), err=True)
+		err_stream = click.get_text_stream("stderr")
+		error_prefix = SYMBOLS.get("error", stream=err_stream)
+		click.echo(click.style(f"{error_prefix} Error: {exc}", fg="red", bold=True), err=True)
 
 
 def register(group: click.Group) -> None:
