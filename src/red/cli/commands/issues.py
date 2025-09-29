@@ -5,8 +5,9 @@ from __future__ import annotations
 import csv
 import json
 import sys
+from contextlib import nullcontext
 from pathlib import Path
-from typing import Any, Dict, Optional, Sequence, TextIO, Tuple
+from typing import Any, Callable, Dict, List, Optional, Sequence, TextIO, Tuple
 
 import click
 
@@ -69,23 +70,22 @@ def _render_issue_detailed(issue, logged_hours: Optional[float] = None) -> None:
         click.echo(click.style(f"Estimated hours: {issue.estimated_hours}", fg="magenta"))
     if logged_hours is not None:
         click.echo(click.style(f"Spent time: {logged_hours} hours", fg="cyan"))
-    
+
     # Description
     if issue.description:
         click.echo()
         click.echo(click.style("Description:", fg="white", bold=True))
-        # Wrap description for better readability
         desc_lines = issue.description.split('\n')
-        for line in desc_lines[:5]:  # Limit to first 5 lines
+        for line in desc_lines[:5]:
             click.echo(click.style(f"  {line}", fg="white"))
         if len(desc_lines) > 5:
             ellipsis = SYMBOLS.get("ellipsis")
             click.echo(click.style(f"  {ellipsis} (truncated)", fg="yellow"))
-    
-    click.echo()  # Empty line between issues
+
+    click.echo()
     stream = click.get_text_stream("stdout")
     separator_char = "─" if use_emoji(stream) else "-"
-    click.echo(click.style(separator_char * 60, fg="bright_black"))  # Separator line
+    click.echo(click.style(separator_char * 60, fg="bright_black"))
 
 
 def _render_issue_oneline(issue, logged_hours: Optional[float] = None) -> None:
@@ -117,6 +117,65 @@ def _render_issue(issue, oneline: bool = False, logged_hours: Optional[float] = 
         _render_issue_oneline(issue, logged_hours)
     else:
         _render_issue_detailed(issue, logged_hours)
+
+
+def _maybe_spinner(message: str, enabled: bool):
+    return Spinner(message) if enabled else nullcontext()
+
+
+def _calculate_pagination(limit: Optional[int], show_first: int, page: int, for_csv: bool) -> Tuple[Optional[int], Optional[int]]:
+    fetch_limit = limit if for_csv else (limit or show_first)
+    if fetch_limit:
+        offset = (page - 1) * fetch_limit
+    else:
+        offset = None
+    return fetch_limit, offset
+
+
+def _fetch_issues(
+    app: AppContainer,
+    *,
+    issue_ids: Tuple[str, ...],
+    project: Optional[str],
+    show_first: int,
+    limit: Optional[int],
+    page: int,
+    status_filter: Optional[str],
+    as_csv: bool,
+) -> List[Any]:
+    if issue_ids:
+        def _fetch() -> List[Any]:
+            results: List[Any] = []
+            for spec in issue_ids[:show_first]:
+                issues = app.issues.list_by_ids((spec,), limit=None)
+                results.extend(issues)
+                if len(results) >= show_first:
+                    break
+            return results
+
+        with _maybe_spinner("Loading issues...", enabled=not as_csv):
+            return _fetch()
+
+    fetch_limit, offset = _calculate_pagination(limit, show_first, page, as_csv)
+
+    if project:
+        fetch_fn: Callable[[], List[Any]] = lambda: app.issues.list_by_project(
+            project,
+            limit=fetch_limit,
+            offset=offset,
+            status=status_filter,
+        )
+        message = f"Loading issues for project '{project}' (page {page})..."
+    else:
+        fetch_fn = lambda: app.issues.list_for_current_user(
+            limit=fetch_limit,
+            offset=offset,
+            status=status_filter,
+        )
+        message = f"Loading your issues (page {page})..."
+
+    with _maybe_spinner(message, enabled=not as_csv):
+        return fetch_fn()
 
 
 def _normalize_for_csv(value: Any) -> Any:
@@ -169,7 +228,17 @@ def _export_issues_to_csv(issues: Sequence[Any], stream: TextIO) -> int:
 @click.option("--page", type=int, default=1, show_default=True, help="Page number to fetch when using pagination")
 @click.option("--oneline", is_flag=True, help="Show issues in compact oneline format")
 @click.option("--no-logged-hours", is_flag=True, help="Skip fetching logged hours to improve performance")
-@click.option("--csv", "as_csv", is_flag=True, help="Output the fetched issues as CSV")
+@click.option(
+    "--csv",
+    "as_csv",
+    is_flag=True,
+    help=(
+        "Output the fetched issues as CSV. Includes a header row with the issue id "
+        "column first, followed by all other raw Redmine fields sorted "
+        "alphabetically. Nested objects are JSON-encoded and lists are rendered "
+        "as semicolon-separated values."
+    ),
+)
 @click.option(
     "-o",
     "--output",
@@ -178,6 +247,7 @@ def _export_issues_to_csv(issues: Sequence[Any], stream: TextIO) -> int:
     help="Write CSV output to the given file (use with --csv)",
 )
 @click.option("--project", type=str, help="Filter issues by project name or identifier")
+@click.option("--status", type=click.Choice(["open", "closed", "all"]), default="all", help="Filter issues by status (default: all)")
 @click.pass_obj
 def issues(
     app: AppContainer,
@@ -190,14 +260,37 @@ def issues(
     output_path: Optional[Path],
     project: Optional[str],
     no_logged_hours: bool,
+    status: str,
 ) -> None:
-    """List issues for the current user, specific IDs, or by project."""
+    """List issues for the current user, specific IDs, or by project.
+
+         CSV export details (``--csv``):
+
+         1. **Header layout** – every export starts with a header row. ``id`` is
+             forced to the leftmost column so spreadsheets sort correctly; the
+             remaining Redmine fields follow in alphabetical order to mirror the API
+             payload. Example:
+
+             ``id,assigned_to,author,created_on,status,subject,tracker``
+
+             ``384,Dave Admin,Anonymous,2025-06-16T14:16:11Z,To Do,Upgrade API,Feature``
+
+         2. **Value normalisation** – scalars are emitted as-is, nested dictionaries
+             are JSON-encoded, and lists become semicolon-separated strings. Complex
+             custom fields therefore remain inspectable without losing structure.
+
+         3. **Destination** – data is written to stdout by default. Provide
+             ``--output <file>`` to send the same CSV content directly to disk.
+    """
+
     try:
         if output_path and not as_csv:
             raise click.UsageError("--output/-o can only be used together with --csv")
 
         if page < 1:
             raise click.UsageError("--page must be greater than or equal to 1")
+
+        status_filter = status if status != "all" else None
 
         if issue_ids and project:
             raise click.UsageError("Cannot specify both issue IDs and --project option")
@@ -206,42 +299,16 @@ def issues(
             search_prefix = SYMBOLS.get("search")
             click.echo(click.style(f"{search_prefix} Fetching issues (page {page})...", fg="blue"))
 
-        fetched: list = []
-
-        if issue_ids:
-            if as_csv:
-                for spec in issue_ids[:show_first]:
-                    issues = app.issues.list_by_ids((spec,), limit=None)
-                    fetched.extend(issues)
-                    if len(fetched) >= show_first:
-                        break
-            else:
-                with Spinner("Loading issues..."):
-                    for spec in issue_ids[:show_first]:
-                        issues = app.issues.list_by_ids((spec,), limit=None)
-                        fetched.extend(issues)
-                        if len(fetched) >= show_first:
-                            break
-        elif project:
-            if as_csv:
-                fetch_limit = limit
-                offset = (page - 1) * fetch_limit if fetch_limit else None
-                fetched = app.issues.list_by_project(project, limit=fetch_limit, offset=offset)
-            else:
-                fetch_limit = limit or show_first
-                offset = (page - 1) * fetch_limit if fetch_limit else None
-                with Spinner(f"Loading issues for project '{project}' (page {page})..."):
-                    fetched = app.issues.list_by_project(project, limit=fetch_limit, offset=offset)
-        else:
-            if as_csv:
-                fetch_limit = limit
-                offset = (page - 1) * fetch_limit if fetch_limit else None
-                fetched = app.issues.list_for_current_user(limit=fetch_limit, offset=offset)
-            else:
-                fetch_limit = limit or show_first
-                offset = (page - 1) * fetch_limit if fetch_limit else None
-                with Spinner(f"Loading your issues (page {page})..."):
-                    fetched = app.issues.list_for_current_user(limit=fetch_limit, offset=offset)
+        fetched = _fetch_issues(
+            app,
+            issue_ids=issue_ids,
+            project=project,
+            show_first=show_first,
+            limit=limit,
+            page=page,
+            status_filter=status_filter,
+            as_csv=as_csv,
+        )
 
         if as_csv:
             export_source = fetched

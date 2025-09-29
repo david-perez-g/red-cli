@@ -16,11 +16,18 @@ from .auth_service import AuthService
 class IssueService:
     _auth_service: AuthService
 
-    def list_for_current_user(self, *, limit: Optional[int] = None, offset: Optional[int] = None) -> List[Issue]:
+    def list_for_current_user(self, *, limit: Optional[int] = None, offset: Optional[int] = None, status: Optional[str] = None) -> List[Issue]:
         client = RedmineClient(self._auth_service.require_session())
+        filters = {"assigned_to_id": "me"}
+        if status:
+            filters["status_id"] = status
+        if limit is not None:
+            filters["limit"] = limit
+        if offset is not None:
+            filters["offset"] = offset
         issues = [
             Issue.from_api_data(raw)
-            for raw in client.list_issues(assigned_to_id="me", limit=limit, offset=offset)
+            for raw in client.list_issues(**filters)
         ]
         return issues
 
@@ -30,11 +37,19 @@ class IssueService:
         *,
         limit: Optional[int] = None,
         offset: Optional[int] = None,
+        status: Optional[str] = None,
     ) -> List[Issue]:
         client = RedmineClient(self._auth_service.require_session())
+        filters = {"project_id": project_identifier}
+        if status:
+            filters["status_id"] = status
+        if limit is not None:
+            filters["limit"] = limit
+        if offset is not None:
+            filters["offset"] = offset
         issues = [
             Issue.from_api_data(raw)
-            for raw in client.list_issues(project_id=project_identifier, limit=limit, offset=offset)
+            for raw in client.list_issues(**filters)
         ]
         return issues
 
