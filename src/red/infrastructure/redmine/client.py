@@ -37,6 +37,20 @@ class RedmineClient:
             raise RuntimeError(f"API error: {response.status_code} - {response.text}")
         return response.json()
 
+    def _resolve_project_id(self, project_name_or_identifier: str) -> str:
+        """Resolve a project name or identifier to its ID."""
+        projects = self.list_projects()
+        for project in projects:
+            name_matches = project.get("name") == project_name_or_identifier
+            identifier_matches = project.get("identifier") == project_name_or_identifier
+            if name_matches or identifier_matches:
+                return str(project["id"])
+        return project_name_or_identifier
+
+    def list_projects(self) -> List[Dict[str, Any]]:
+        payload = self._request("GET", "projects.json")
+        return payload.get("projects", [])
+
     def list_issues(self, **filters: Any) -> List[Dict[str, Any]]:
         params: Dict[str, Any] = {}
         if "assigned_to_id" in filters:
@@ -45,6 +59,15 @@ class RedmineClient:
             params["status_id"] = filters["status_id"]
         if "tracker_id" in filters:
             params["tracker_id"] = filters["tracker_id"]
+        if "project_id" in filters:
+            project_id = filters["project_id"]
+            if isinstance(project_id, str) and not str(project_id).isdigit():
+                project_id = self._resolve_project_id(project_id)
+            params["project_id"] = project_id
+        if "limit" in filters and filters["limit"] is not None:
+            params["limit"] = filters["limit"]
+        if "offset" in filters and filters["offset"] is not None:
+            params["offset"] = filters["offset"]
         if "issue_ids" in filters:
             # For now return empty list; future work may iterate calls.
             return []

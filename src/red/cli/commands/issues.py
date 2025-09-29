@@ -6,7 +6,7 @@ import csv
 import json
 import sys
 from pathlib import Path
-from typing import Any, Optional, Sequence, TextIO, Tuple
+from typing import Any, Dict, Optional, Sequence, TextIO, Tuple
 
 import click
 
@@ -67,8 +67,8 @@ def _render_issue_detailed(issue, logged_hours: Optional[float] = None) -> None:
         click.echo(click.style(f"Progress: {issue.done_ratio}% done", fg="magenta"))
     if issue.estimated_hours:
         click.echo(click.style(f"Estimated hours: {issue.estimated_hours}", fg="magenta"))
-    if logged_hours is not None and logged_hours > 0:
-        click.echo(click.style(f"Logged hours: {logged_hours}", fg="cyan"))
+    if logged_hours is not None:
+        click.echo(click.style(f"Spent time: {logged_hours} hours", fg="cyan"))
     
     # Description
     if issue.description:
@@ -88,7 +88,7 @@ def _render_issue_detailed(issue, logged_hours: Optional[float] = None) -> None:
     click.echo(click.style(separator_char * 60, fg="bright_black"))  # Separator line
 
 
-def _render_issue_oneline(issue) -> None:
+def _render_issue_oneline(issue, logged_hours: Optional[float] = None) -> None:
     """Render issue in compact oneline format."""
     status = issue.status
     tracker = issue.tracker
@@ -106,21 +106,16 @@ def _render_issue_oneline(issue) -> None:
     click.echo(click.style(f"#{issue.id}", fg="cyan", bold=True), nl=False)
     click.echo(click.style(f" [{tracker}]", fg="magenta"), nl=False)
     click.echo(click.style(f" {subject}", fg="white", bold=True), nl=False)
+    if logged_hours is not None:
+        click.echo(click.style(f" [spent {logged_hours}h]", fg="cyan"), nl=False)
     click.echo(click.style(f" ({status})", fg=status_color))
 
 
-def _render_issue(issue, oneline: bool = False, app: Optional[AppContainer] = None) -> None:
+def _render_issue(issue, oneline: bool = False, logged_hours: Optional[float] = None) -> None:
     """Render an issue, either detailed or oneline."""
     if oneline:
-        _render_issue_oneline(issue)
+        _render_issue_oneline(issue, logged_hours)
     else:
-        logged_hours = None
-        if app:
-            try:
-                logged_hours = app.issues.get_logged_hours(issue.id)
-            except Exception:
-                # Silently ignore errors when fetching logged hours
-                pass
         _render_issue_detailed(issue, logged_hours)
 
 
@@ -169,9 +164,11 @@ def _export_issues_to_csv(issues: Sequence[Any], stream: TextIO) -> int:
 
 @click.command()
 @click.argument("issue_ids", nargs=-1)
-@click.option("--show-first", type=int, default=20, help="Show first N issues")
-@click.option("--limit", type=int, help="Limit the number of issues fetched from API (default: no limit)")
+@click.option("--show-first", type=int, default=20, show_default=True, help="Number of issues to display per page")
+@click.option("--limit", type=int, help="Limit the number of issues fetched from the API (defaults to --show-first for interactive display)")
+@click.option("--page", type=int, default=1, show_default=True, help="Page number to fetch when using pagination")
 @click.option("--oneline", is_flag=True, help="Show issues in compact oneline format")
+@click.option("--no-logged-hours", is_flag=True, help="Skip fetching logged hours to improve performance")
 @click.option("--csv", "as_csv", is_flag=True, help="Output the fetched issues as CSV")
 @click.option(
     "-o",
@@ -187,25 +184,32 @@ def issues(
     issue_ids: Tuple[str, ...],
     show_first: int,
     limit: Optional[int],
+    page: int,
     oneline: bool,
     as_csv: bool,
     output_path: Optional[Path],
     project: Optional[str],
+    no_logged_hours: bool,
 ) -> None:
     """List issues for the current user, specific IDs, or by project."""
     try:
         if output_path and not as_csv:
             raise click.UsageError("--output/-o can only be used together with --csv")
 
+        if page < 1:
+            raise click.UsageError("--page must be greater than or equal to 1")
+
         if issue_ids and project:
             raise click.UsageError("Cannot specify both issue IDs and --project option")
 
         if not as_csv:
             search_prefix = SYMBOLS.get("search")
-            click.echo(click.style(f"{search_prefix} Fetching issues...", fg="blue"))
+            click.echo(click.style(f"{search_prefix} Fetching issues (page {page})...", fg="blue"))
+
+        fetched: list = []
+
         if issue_ids:
             if as_csv:
-                fetched = []
                 for spec in issue_ids[:show_first]:
                     issues = app.issues.list_by_ids((spec,), limit=None)
                     fetched.extend(issues)
@@ -213,7 +217,6 @@ def issues(
                         break
             else:
                 with Spinner("Loading issues..."):
-                    fetched = []
                     for spec in issue_ids[:show_first]:
                         issues = app.issues.list_by_ids((spec,), limit=None)
                         fetched.extend(issues)
@@ -221,16 +224,24 @@ def issues(
                             break
         elif project:
             if as_csv:
-                fetched = app.issues.list_by_project(project, limit=limit)
+                fetch_limit = limit
+                offset = (page - 1) * fetch_limit if fetch_limit else None
+                fetched = app.issues.list_by_project(project, limit=fetch_limit, offset=offset)
             else:
-                with Spinner(f"Loading issues for project '{project}'..."):
-                    fetched = app.issues.list_by_project(project, limit=limit)
+                fetch_limit = limit or show_first
+                offset = (page - 1) * fetch_limit if fetch_limit else None
+                with Spinner(f"Loading issues for project '{project}' (page {page})..."):
+                    fetched = app.issues.list_by_project(project, limit=fetch_limit, offset=offset)
         else:
             if as_csv:
-                fetched = app.issues.list_for_current_user(limit=limit)
+                fetch_limit = limit
+                offset = (page - 1) * fetch_limit if fetch_limit else None
+                fetched = app.issues.list_for_current_user(limit=fetch_limit, offset=offset)
             else:
-                with Spinner("Loading your issues..."):
-                    fetched = app.issues.list_for_current_user(limit=limit)
+                fetch_limit = limit or show_first
+                offset = (page - 1) * fetch_limit if fetch_limit else None
+                with Spinner(f"Loading your issues (page {page})..."):
+                    fetched = app.issues.list_for_current_user(limit=fetch_limit, offset=offset)
 
         if as_csv:
             export_source = fetched
@@ -269,11 +280,17 @@ def issues(
         click.echo(click.style(f"{found_prefix} Found {len(fetched)} issues", fg="blue", bold=True))
         click.echo()
 
-        for issue in fetched[:show_first]:
-            _render_issue(issue, oneline, app)
-        if len(fetched) > show_first:
+        displayed_issues = fetched[:show_first]
+        logged_hours_map: Dict[int, float] = {}
+        if displayed_issues and not no_logged_hours:
+            logged_hours_map = app.issues.get_logged_hours_bulk([issue.id for issue in displayed_issues])
+
+        for issue in displayed_issues:
+            _render_issue(issue, oneline, logged_hours_map.get(issue.id))
+
+        if len(fetched) > len(displayed_issues):
             ellipsis = SYMBOLS.get("ellipsis")
-            click.echo(click.style(f"{ellipsis} {len(fetched) - show_first} more issues", fg="yellow"))
+            click.echo(click.style(f"{ellipsis} {len(fetched) - len(displayed_issues)} more issues", fg="yellow"))
     except AuthorizationRequiredError as exc:
         auth_prefix = SYMBOLS.get("auth", stream=click.get_text_stream("stderr"))
         click.echo(click.style(f"{auth_prefix} Authentication required: {exc}", fg="red", bold=True), err=True)

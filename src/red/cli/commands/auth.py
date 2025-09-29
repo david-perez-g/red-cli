@@ -37,12 +37,11 @@ def login(app: AppContainer, server: str, auth_user: Optional[str], method: Opti
         else:
             password = click.prompt(click.style("Enter your password", fg="yellow"), hide_input=True)
 
-        click.echo()
         with Spinner("Authenticating..."):
             session = app.auth.login(server, username=auth_user, password=password, token=token)
 
         success_prefix = SYMBOLS.get("success")
-        click.echo(click.style(f"{success_prefix} Successfully logged in!", fg="green", bold=True))
+        click.echo(click.style(f"\n{success_prefix} Successfully logged in!", fg="green", bold=True))
         click.echo(click.style(f"User: {session.user_name} (ID: {session.user_id})", fg="cyan"))
         click.echo(click.style(f"Server: {session.server_url}", fg="cyan"))
     except AuthError as exc:

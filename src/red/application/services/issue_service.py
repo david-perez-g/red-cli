@@ -2,10 +2,11 @@
 
 from __future__ import annotations
 
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass
-from typing import Iterable, Iterator, List, Optional
+from typing import Dict, Iterable, Iterator, List, Optional, Sequence
 
-from ...domain.models import Issue
+from ...domain.models import Issue, UserSession
 from ...domain.utils import parse_ids
 from ...infrastructure.redmine.client import RedmineClient
 from .auth_service import AuthService
@@ -15,14 +16,26 @@ from .auth_service import AuthService
 class IssueService:
     _auth_service: AuthService
 
-    def list_for_current_user(self, limit: Optional[int] = None) -> List[Issue]:
+    def list_for_current_user(self, *, limit: Optional[int] = None, offset: Optional[int] = None) -> List[Issue]:
         client = RedmineClient(self._auth_service.require_session())
-        issues = [Issue.from_api_data(raw) for raw in client.list_issues(assigned_to_id="me", limit=limit)]
+        issues = [
+            Issue.from_api_data(raw)
+            for raw in client.list_issues(assigned_to_id="me", limit=limit, offset=offset)
+        ]
         return issues
 
-    def list_by_project(self, project_identifier: str, limit: Optional[int] = None) -> List[Issue]:
+    def list_by_project(
+        self,
+        project_identifier: str,
+        *,
+        limit: Optional[int] = None,
+        offset: Optional[int] = None,
+    ) -> List[Issue]:
         client = RedmineClient(self._auth_service.require_session())
-        issues = [Issue.from_api_data(raw) for raw in client.list_issues(project_id=project_identifier, limit=limit)]
+        issues = [
+            Issue.from_api_data(raw)
+            for raw in client.list_issues(project_id=project_identifier, limit=limit, offset=offset)
+        ]
         return issues
 
     def list_by_ids(self, specs: Iterable[str], limit: Optional[int] = None) -> List[Issue]:
@@ -45,6 +58,49 @@ class IssueService:
 
     def get_logged_hours(self, issue_id: int) -> float:
         """Get total logged hours for an issue."""
-        client = RedmineClient(self._auth_service.require_session())
-        time_entries = client.list_time_entries(issue_id=issue_id)
-        return sum(entry["hours"] for entry in time_entries)
+        totals = self.get_logged_hours_bulk([issue_id])
+        return totals.get(issue_id, 0.0)
+
+    def get_logged_hours_bulk(
+        self,
+        issue_ids: Sequence[int],
+        *,
+        batch_size: int = 10,
+        max_workers: int = 5,
+    ) -> Dict[int, float]:
+        session = self._auth_service.require_session()
+        unique_issue_ids: List[int] = list(dict.fromkeys(issue_ids))
+        if not unique_issue_ids:
+            return {}
+
+        results: Dict[int, float] = {}
+        batch_size = max(batch_size, 1)
+
+        for start in range(0, len(unique_issue_ids), batch_size):
+            batch = unique_issue_ids[start : start + batch_size]
+            max_pool_size = min(max_workers, len(batch)) or 1
+
+            with ThreadPoolExecutor(max_workers=max_pool_size) as executor:
+                futures = {
+                    executor.submit(self._fetch_logged_hours_for_issue, session, issue_id): issue_id
+                    for issue_id in batch
+                }
+                for future in as_completed(futures):
+                    issue_id = futures[future]
+                    try:
+                        results[issue_id] = future.result()
+                    except Exception:  # noqa: BLE001
+                        results[issue_id] = 0.0
+
+        return results
+
+    @staticmethod
+    def _fetch_logged_hours_for_issue(session: UserSession, issue_id: int) -> float:
+        client = RedmineClient(session)
+        time_entries = client.list_time_entries(issue_id=str(issue_id))
+        total = 0.0
+        for entry in time_entries:
+            hours = entry.get("hours")
+            if hours is not None:
+                total += float(hours)
+        return total
