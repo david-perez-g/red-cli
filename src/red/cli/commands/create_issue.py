@@ -20,7 +20,7 @@ from ...domain.exceptions import AuthorizationRequiredError
 @click.option("-S", "--status", help="Status name or ID for the new issue")
 @click.option("--start-date", help="Start date for the issue (YYYY-MM-DD format)")
 @click.option("--due-date", help="Due date for the issue (YYYY-MM-DD format)")
-@click.option("-a", "--assignee", help="Assignee name, login, or ID for the issue")
+@click.option("-a", "--assignee", default="me", help="Assignee name, login, or ID for the issue (default: me)")
 @click.pass_obj
 def create_issue(
     app: AppContainer,
