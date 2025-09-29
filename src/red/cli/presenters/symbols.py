@@ -91,6 +91,7 @@ SYMBOLS = SymbolPalette(
         "clock": Symbol("⏰", "[TIME]"),
         "chart": Symbol("📊", "[OVERVIEW]"),
         "tag": Symbol("🏷", "[TRACKER]"),
+    "save": Symbol("💾", "[SAVE]"),
     }
 )
 

@@ -70,6 +70,8 @@ class RedmineClient:
             params["from"] = filters["from_date"]
         if "to_date" in filters:
             params["to"] = filters["to_date"]
+        if "issue_id" in filters:
+            params["issue_id"] = filters["issue_id"]
         payload = self._request("GET", "time_entries.json", params=params)
         return payload.get("time_entries", [])
 

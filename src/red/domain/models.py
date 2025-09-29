@@ -2,7 +2,8 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from copy import deepcopy
+from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Any, Dict, Optional
 
@@ -47,6 +48,7 @@ class Issue:
     updated_on: datetime
     done_ratio: int
     estimated_hours: Optional[float]
+    raw: Dict[str, Any] = field(default_factory=dict, repr=False)
 
     @classmethod
     def from_api_data(cls, data: Dict[str, Any]) -> "Issue":
@@ -65,6 +67,7 @@ class Issue:
             updated_on=datetime.fromisoformat(data["updated_on"].replace("Z", "+00:00")).replace(tzinfo=None),
             done_ratio=data.get("done_ratio", 0),
             estimated_hours=data.get("estimated_hours"),
+            raw=deepcopy(data),
         )
 
 
