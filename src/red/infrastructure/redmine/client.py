@@ -47,6 +47,36 @@ class RedmineClient:
                 return str(project["id"])
         return project_name_or_identifier
 
+    def resolve_project(self, project_name_or_identifier: str) -> str:
+        """Public helper for resolving project identifiers before API calls."""
+        return self._resolve_project_id(project_name_or_identifier)
+
+    def list_trackers(self) -> List[Dict[str, Any]]:
+        payload = self._request("GET", "trackers.json")
+        return payload.get("trackers", [])
+
+    def list_issue_statuses(self) -> List[Dict[str, Any]]:
+        payload = self._request("GET", "issue_statuses.json")
+        return payload.get("issue_statuses", [])
+
+    def resolve_tracker(self, tracker_name_or_id: str) -> str:
+        if str(tracker_name_or_id).isdigit():
+            return str(tracker_name_or_id)
+
+        for tracker in self.list_trackers():
+            if tracker.get("name") == tracker_name_or_id:
+                return str(tracker["id"])
+        raise ValueError(f"Tracker '{tracker_name_or_id}' not found")
+
+    def resolve_status(self, status_name_or_id: str) -> str:
+        if str(status_name_or_id).isdigit():
+            return str(status_name_or_id)
+
+        for status in self.list_issue_statuses():
+            if status.get("name") == status_name_or_id:
+                return str(status["id"])
+        raise ValueError(f"Status '{status_name_or_id}' not found")
+
     def list_projects(self) -> List[Dict[str, Any]]:
         payload = self._request("GET", "projects.json")
         return payload.get("projects", [])
@@ -105,3 +135,18 @@ class RedmineClient:
             json={"time_entry": {"issue_id": issue_id, "hours": hours, "comments": comments}},
         )
         return payload.get("time_entry", {})
+
+    def list_users(self) -> List[Dict[str, Any]]:
+        payload = self._request("GET", "users.json")
+        return payload.get("users", [])
+
+    def resolve_assignee(self, assignee_name_or_id: str) -> str:
+        if str(assignee_name_or_id).isdigit():
+            return str(assignee_name_or_id)
+        if assignee_name_or_id.lower() == "me":
+            return "me"
+
+        for user in self.list_users():
+            if user.get("name") == assignee_name_or_id or user.get("login") == assignee_name_or_id:
+                return str(user["id"])
+        raise ValueError(f"Assignee '{assignee_name_or_id}' not found")

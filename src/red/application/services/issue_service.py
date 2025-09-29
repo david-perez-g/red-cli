@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass
-from typing import Dict, Iterable, Iterator, List, Optional, Sequence
+from typing import Any, Dict, Iterable, Iterator, List, Optional, Sequence
 
 from ...domain.models import Issue, UserSession
 from ...domain.utils import parse_ids
@@ -75,6 +75,45 @@ class IssueService:
         """Get total logged hours for an issue."""
         totals = self.get_logged_hours_bulk([issue_id])
         return totals.get(issue_id, 0.0)
+
+    def create_issue(
+        self,
+        *,
+        project: str,
+        subject: str,
+        description: Optional[str] = None,
+        tracker: Optional[str] = None,
+        status: Optional[str] = None,
+        start_date: Optional[str] = None,
+        due_date: Optional[str] = None,
+        assignee: Optional[str] = None,
+    ) -> Issue:
+        """Create a new issue in the given project."""
+
+        client = RedmineClient(self._auth_service.require_session())
+        resolved_project = client.resolve_project(project)
+
+        payload: Dict[str, Any] = {
+            "project_id": resolved_project,
+            "subject": subject,
+        }
+        if description:
+            payload["description"] = description
+        if tracker:
+            payload["tracker_id"] = client.resolve_tracker(tracker)
+        if status:
+            payload["status_id"] = client.resolve_status(status)
+        if start_date:
+            payload["start_date"] = start_date
+        if due_date:
+            payload["due_date"] = due_date
+        if assignee:
+            payload["assigned_to_id"] = client.resolve_assignee(assignee)
+
+        created = client.create_issue(payload)
+        if not created:
+            raise RuntimeError("Issue creation failed: empty response")
+        return Issue.from_api_data(created)
 
     def get_logged_hours_bulk(
         self,
