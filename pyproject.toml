@@ -4,8 +4,8 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "red"
-version = "0.1.0"
-description = "Red — simple example CLI"
+version = "0.2.0"
+description = "Red — A comprehensive CLI for Redmine issue management with bulk operations and CSV support"
 readme = "README.md"
 license = {text = "MIT"}
 authors = [{name="Your Name", email="you@example.com"}]

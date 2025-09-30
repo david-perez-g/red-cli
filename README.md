@@ -8,6 +8,10 @@ A clean, efficient CLI for Redmine issue management.
 pip install .
 ```
 
+## Changelog
+
+See [CHANGELOG.md](CHANGELOG.md) for version history and updates.
+
 ## Usage
 
 ### Authentication
@@ -76,6 +80,7 @@ red issues --project "MyProject" --status all --csv -o project_issues.csv
 ```
 
 **CSV Format Details:**
+
 - Header row with `id` first, followed by all other fields alphabetically
 - Nested objects are JSON-encoded, lists are semicolon-separated
 - Example: `id,assigned_to,author,created_on,status,subject,tracker`
@@ -104,6 +109,7 @@ red create -p "MyProject" -s "Quick task"
 ```
 
 **Available Options:**
+
 - `-p, --project`: Project identifier or ID (required)
 - `-s, --subject`: Issue subject (required, prompts if not provided)
 - `-d, --description`: Detailed description
@@ -124,15 +130,16 @@ red create --csv --input issues.csv --output created_issues.csv
 ```
 
 **CSV Format for Bulk Creation:**
-Required columns: `project_id`, `subject`
-Optional columns: `description`, `tracker_id`, `status_id`, `assigned_to_id`, `start_date`, `due_date`
+Required columns: `project`, `subject`
+Optional columns: `description`, `tracker`, `status`, `assigned_to`, `start_date`, `due_date`, `estimated_hours`
 
 **Example CSV:**
+
 ```csv
-project_id,subject,description,tracker_id,status_id,assigned_to_id,start_date,due_date
-myproject,Fix login bug,Authentication fails on mobile,Bug,To Do,john.doe,2025-10-01,2025-10-07
-myproject,Add dark mode,Implement dark theme,Feature,New,,2025-10-08,2025-10-15
-myproject,Update docs,Refresh API documentation,,,,,
+project,subject,description,tracker,status,assigned_to,start_date,due_date,estimated_hours
+myproject,Fix login bug,Authentication fails on mobile,Bug,To Do,john.doe,2025-10-01,2025-10-07,4.0
+myproject,Add dark mode,Implement dark theme,Feature,New,,2025-10-08,2025-10-15,8.0
+myproject,Update docs,Refresh API documentation,,,,,,
 ```
 
 ### Reports & Overview
@@ -176,14 +183,16 @@ red overview --project "web-app"
 ### Bulk Issue Creation
 
 Create `bulk_issues.csv`:
+
 ```csv
-project_id,subject,description,tracker_id,status_id,assigned_to_id,start_date,due_date
-web-app,Implement search,Add search functionality,Feature,To Do,developer1,2025-10-01,2025-10-10
-web-app,Fix mobile layout,Responsive design issues,Bug,In Progress,developer2,2025-10-05,2025-10-12
-web-app,Update dependencies,Security updates for libraries,Task,New,,2025-10-08,2025-10-09
+project,subject,description,tracker,status,assigned_to,start_date,due_date,estimated_hours
+web-app,Implement search,Add search functionality,Feature,To Do,developer1,2025-10-01,2025-10-10,16.0
+web-app,Fix mobile layout,Responsive design issues,Bug,In Progress,developer2,2025-10-05,2025-10-12,6.0
+web-app,Update dependencies,Security updates for libraries,Task,New,,2025-10-08,2025-10-09,2.0
 ```
 
 Then create all issues:
+
 ```bash
 red create --csv --input bulk_issues.csv --output created_issues.csv
 ```
@@ -191,6 +200,7 @@ red create --csv --input bulk_issues.csv --output created_issues.csv
 ## Error Handling
 
 The CLI provides clear error messages for:
+
 - Authentication failures
 - Invalid project/tracker/status names
 - Malformed CSV files

@@ -12,7 +12,7 @@ from .commands import overview as overview_command
 
 
 @click.group()
-@click.version_option(version="0.1.0")
+@click.version_option(version="0.2.0")
 @click.pass_context
 def main(ctx: click.Context) -> None:
     """🚀 Redmine CLI - Efficient issue management from the command line."""
