@@ -87,6 +87,7 @@ class IssueService:
         start_date: Optional[str] = None,
         due_date: Optional[str] = None,
         assignee: Optional[str] = None,
+        estimated_hours: Optional[float] = None,
     ) -> Issue:
         """Create a new issue in the given project."""
 
@@ -109,6 +110,8 @@ class IssueService:
             payload["due_date"] = due_date
         if assignee:
             payload["assigned_to_id"] = client.resolve_assignee(assignee)
+        if estimated_hours is not None:
+            payload["estimated_hours"] = estimated_hours
 
         created = client.create_issue(payload)
         if not created:

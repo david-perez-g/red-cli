@@ -22,8 +22,8 @@ def _create_issues_from_csv(app: AppContainer, csv_path: Path, output_path: Opti
             reader = csv.DictReader(csvfile)
             
             # Validate CSV headers
-            required_columns = {"project_id", "subject"}
-            optional_columns = {"description", "tracker_id", "status_id", "assigned_to_id", "start_date", "due_date"}
+            required_columns = {"project", "subject"}
+            optional_columns = {"description", "tracker", "status", "assigned_to", "start_date", "due_date", "estimated_hours"}
             allowed_columns = required_columns | optional_columns
             
             if not reader.fieldnames:
@@ -56,14 +56,15 @@ def _create_issues_from_csv(app: AppContainer, csv_path: Path, output_path: Opti
                 try:
                     with Spinner(f"Creating issue {i}/{total_issues}..."):
                         created_issue = app.issues.create_issue(
-                            project=row["project_id"],
+                            project=row["project"],
                             subject=row["subject"],
                             description=row.get("description") or None,
-                            tracker=row.get("tracker_id") or None,
-                            status=row.get("status_id") or None,
+                            tracker=row.get("tracker") or None,
+                            status=row.get("status") or None,
                             start_date=row.get("start_date") or None,
                             due_date=row.get("due_date") or None,
-                            assignee=row.get("assigned_to_id") or None,
+                            assignee=row.get("assigned_to") or None,
+                            estimated_hours=float(row["estimated_hours"]) if row.get("estimated_hours") else None,
                         )
                     
                     success_prefix = SYMBOLS.get("success")
@@ -123,7 +124,7 @@ def _create_issues_from_csv(app: AppContainer, csv_path: Path, output_path: Opti
     "--csv",
     "from_csv",
     is_flag=True,
-    help="Create issues from CSV file. CSV must have columns: project_id,subject (required) and optionally: description,tracker_id,status_id,assigned_to_id,start_date,due_date",
+    help="Create issues from CSV file. CSV must have columns: project,subject (required) and optionally: description,tracker,status,assigned_to,start_date,due_date,estimated_hours",
 )
 @click.option(
     "-i",
@@ -159,14 +160,15 @@ def create_issue(
     For single issue creation, use the individual options.
     
     For bulk creation from CSV, use --csv with --input. The CSV must have these columns:
-    - project_id (required): Project identifier or numeric ID
+    - project (required): Project name or numeric ID
     - subject (required): Issue subject
     - description (optional): Issue description  
-    - tracker_id (optional): Tracker name or numeric ID
-    - status_id (optional): Status name or numeric ID
-    - assigned_to_id (optional): Assignee name, login, or numeric ID
+    - tracker (optional): Tracker name or numeric ID
+    - status (optional): Status name or numeric ID
+    - assigned_to (optional): Assignee name, login, or numeric ID
     - start_date (optional): Start date in YYYY-MM-DD format
     - due_date (optional): Due date in YYYY-MM-DD format
+    - estimated_hours (optional): Estimated hours as a decimal number
     """
     try:
         # Validate option combinations
