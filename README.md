@@ -10,7 +10,31 @@ pip install .
 
 ## Changelog
 
-See [CHANGELOG.md](CHANGELOG.md) for version history and updates.
+See [CHANGELOG.md](CHAN### Time Tracking
+
+```bash
+# View all your logged time entries (grouped by week)
+red hours
+
+# Filter by date range
+red hours --from-date 2025-09-01 --to-date 2025-09-30
+
+# Filter by project
+red hours --project "MyProject"
+
+# Combine filters
+red hours --project "MyProject" --from-date 2025-09-01 --limit 20
+
+# Export to CSV
+red hours --csv --from-date 2025-09-01 > hours.csv
+```
+
+**Weekly Summary Features:**
+
+- Groups time entries by ISO week (e.g., "2025-W39: Sep 22-28")
+- Shows weekly totals and daily breakdowns within each week
+- Displays issue details, projects, and comments
+- Maintains chronological order (most recent first)ion history and updates.
 
 ## Usage
 
@@ -152,6 +176,25 @@ red overview
 red overview --project "MyProject"
 ```
 
+### Time Tracking
+
+```bash
+# View all your logged time entries
+red hours
+
+# Filter by date range
+red hours --from-date 2025-09-01 --to-date 2025-09-30
+
+# Filter by project
+red hours --project "MyProject"
+
+# Combine filters
+red hours --project "MyProject" --from-date 2025-09-01 --limit 20
+
+# Export to CSV
+red hours --csv --from-date 2025-09-01 > time_entries.csv
+```
+
 ## Configuration
 
 The CLI stores authentication sessions securely in your user config directory. Sessions persist across terminal sessions until you explicitly logout.
@@ -175,6 +218,9 @@ red create --csv --input sprint_issues.csv --output created_sprint.csv
 
 # Export all project issues for analysis
 red issues --project "web-app" --status all --csv -o project_export.csv
+
+# View your logged hours
+red hours --from-date 2025-09-01
 
 # Get project overview
 red overview --project "web-app"

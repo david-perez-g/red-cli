@@ -7,6 +7,7 @@ import click
 from .app import build_app_container
 from .commands import auth as auth_commands
 from .commands import create_issue as create_issue_command
+from .commands import hours as hours_command
 from .commands import issues as issues_commands
 from .commands import overview as overview_command
 
@@ -25,6 +26,7 @@ def _register_commands(group: click.Group) -> None:
     issues_commands.register(group)
     overview_command.register(group)
     create_issue_command.register(group)
+    hours_command.register(group)
 
 
 _register_commands(main)

@@ -161,3 +161,52 @@ class IssueService:
             if hours is not None:
                 total += float(hours)
         return total
+
+    def get_time_entries(
+        self,
+        *,
+        from_date: Optional[str] = None,
+        to_date: Optional[str] = None,
+        project: Optional[str] = None,
+        limit: Optional[int] = None,
+    ) -> List[Dict[str, Any]]:
+        """Get time entries for the current user with optional filtering."""
+        client = RedmineClient(self._auth_service.require_session())
+        
+        filters = {"user_id": "me"}
+        if from_date:
+            filters["from_date"] = from_date
+        if to_date:
+            filters["to_date"] = to_date
+        
+        time_entries = client.list_time_entries(**filters)
+        
+        # Filter by project if specified and enrich with full issue details
+        enriched_entries = []
+        for entry in time_entries:
+            issue_id = entry.get("issue", {}).get("id")
+            if issue_id:
+                try:
+                    full_issue = client.get_issue(issue_id)
+                    entry["issue"] = full_issue
+                    
+                    # Apply project filter if specified
+                    if project:
+                        project_id = client.resolve_project(project)
+                        if str(full_issue.get("project", {}).get("id")) != str(project_id):
+                            continue
+                    
+                    enriched_entries.append(entry)
+                except Exception:
+                    # If we can't get full issue details, skip this entry
+                    pass
+            else:
+                enriched_entries.append(entry)
+        
+        time_entries = enriched_entries
+        
+        # Apply limit if specified
+        if limit and len(enriched_entries) > limit:
+            enriched_entries = enriched_entries[:limit]
+            
+        return enriched_entries

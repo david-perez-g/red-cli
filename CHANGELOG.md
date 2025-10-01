@@ -17,6 +17,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Comprehensive error handling**: Better error messages and validation for bulk operations
 - **Project name resolution**: Support both project names and identifiers
 - **Enhanced filtering**: Added status filtering, pagination, and project-specific listing
+- **Time tracking**: New `hours` command to view logged time entries with date and project filtering
+- **Weekly summary**: Time entries grouped by ISO week with date ranges and totals
 
 ### Changed
 
